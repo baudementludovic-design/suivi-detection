@@ -4,15 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Suivi de détection</title>
-<meta name="theme-color" content="#0e4194">
-<meta name="description" content="Évaluation des joueurs, classements et sélection en détection de pétanque — F.F.P.J.P.">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Suivi détection">
 <style>
 :root{
   color-scheme: light;
@@ -273,6 +264,17 @@ kbd{font:600 11px system-ui;border:1px solid var(--line-2);border-bottom-width:2
 .alert:has(.errlist){flex-wrap:wrap}
 .errlist{flex-basis:100%}
 .t tr.flashrow td{background:var(--warn-bg)!important;transition:background .3s}
+/* Barème couleur des pourcentages */
+:root{--pc-r:#f9cfcc;--pc-r-ink:#8c1d1b;--pc-o:#fddbb8;--pc-o-ink:#8a4100;--pc-y:#fcefa8;--pc-y-ink:#6b5600;--pc-g:#cdeed2;--pc-g-ink:#145c1e}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--pc-r:#5a2120;--pc-r-ink:#ffc4c0;--pc-o:#5a3412;--pc-o-ink:#ffd2a6;--pc-y:#4f4512;--pc-y-ink:#fbe58a;--pc-g:#173f1f;--pc-g-ink:#a8e6b2}}
+:root[data-theme="dark"]{--pc-r:#5a2120;--pc-r-ink:#ffc4c0;--pc-o:#5a3412;--pc-o-ink:#ffd2a6;--pc-y:#4f4512;--pc-y-ink:#fbe58a;--pc-g:#173f1f;--pc-g-ink:#a8e6b2}
+.pcb{display:inline-block;border-radius:6px;padding:1px 6px;min-width:42px;text-align:right;font-variant-numeric:tabular-nums}
+.pcb.pc-r{background:var(--pc-r);color:var(--pc-r-ink)}
+.pcb.pc-o{background:var(--pc-o);color:var(--pc-o-ink)}
+.pcb.pc-y{background:var(--pc-y);color:var(--pc-y-ink)}
+.pcb.pc-g{background:var(--pc-g);color:var(--pc-g-ink)}
+.pcb.pc-star::after{content:" ★";font-size:10px}
+@media print{.pcb{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 /* Impression de la fiche joueur : seule la fiche est imprimée (pas la page en dessous) */
 @media print{
   body:has(#modal .modal-bg) .app{display:none!important}
@@ -685,9 +687,17 @@ function openModal(html){ document.getElementById('modal').innerHTML=`<div class
 function closeModal(){ document.getElementById('modal').innerHTML=''; document.body.style.overflow=''; }
 const pbadge = p => p ? `<span class="pbadge ${famille(p)}" data-tip="${esc(POSTES[p]||p)}">${esc(p)}</span>` : '<span class="pbadge">?</span>';
 const nameBtn = pl => `<button class="namebtn" data-act="fiche" data-id="${pl.id}">${esc(pl.nom)}</button>`;
-function tierCell(v, th, extra='', fmt=f1){ if(v==null) return `<td class="${extra}">–</td>`; const t=tierOf(v,th); return `<td class="${extra}"><span class="tier ${t?'tier'+t:''}" data-tip="${tipTier(t,th)}">${fmt(v)}</span></td>`; }
+/* Barème couleur des pourcentages (valeur affichée x) : x < 25 rouge · 25 ≤ x < 50 orange · 50 ≤ x < 75 jaune · x ≥ 75 vert
+   Paramètres → Affichage : « Barème fixe » (défaut) ou « Seuils du groupe » (moyenne, S1, S2 — affichage d'origine) */
+const pcOn = () => S.cfg.couleurs!=='seuils';
+function pcCls(v, dec=1){ if(v==null||isNaN(v)) return ''; const p=10**dec, x=Math.round(v*p)/p; return x<25?'pc-r':x<50?'pc-o':x<75?'pc-y':'pc-g'; }
+function pcv(v, txt, dec=1){ return (pcOn() && v!=null && !isNaN(v)) ? `<span class="pcb ${pcCls(v,dec)}">${txt}</span>` : txt; }
+function tierCell(v, th, extra='', fmt=f1, pct=true){ if(v==null) return `<td class="${extra}">–</td>`; const t=tierOf(v,th);
+  if(pct && pcOn()) return `<td class="${extra}"><span class="tier pcb ${pcCls(v, fmt===f0?0:1)} ${t===3?'pc-star':''}" data-tip="${tipTier(t,th)}">${fmt(v)}</span></td>`;
+  return `<td class="${extra}"><span class="tier ${t?'tier'+t:''}" data-tip="${tipTier(t,th)}">${fmt(v)}</span></td>`; }
 function tipTier(t, th){ const L=['Sous la moyenne','Au-dessus de la moyenne','Au-dessus du seuil 1','Au-dessus du seuil 2 (élite)']; return esc(`${L[t]} — moy. ${f1(th.moy)} · S1 ${f1(th.s1)} · S2 ${f1(th.s2)}`); }
-const legendTiers = () => `<div class="legend"><span><i class="tier1" style="background:var(--t1-bg)"></i>&gt; moyenne</span><span><i style="background:var(--t2-bg)"></i>&gt; seuil 1</span><span><i style="background:var(--t3-bg)"></i>&gt; seuil 2 ★</span><span class="muted">Seuil 1 = moyenne des joueurs au-dessus de la moyenne · Seuil 2 = moyenne des joueurs au-dessus du seuil 1 (pondérées par les boules jouées)</span></div>`;
+const legendBareme = () => `<div class="legend"><span><i style="background:var(--pc-r)"></i>&lt; 25 %</span><span><i style="background:var(--pc-o)"></i>25 à 50 %</span><span><i style="background:var(--pc-y)"></i>50 à 75 %</span><span><i style="background:var(--pc-g)"></i>75 % et plus</span><span class="muted">★ = au-dessus du seuil 2 du groupe (élite) · survolez une valeur pour la moyenne et les seuils · autre affichage : Paramètres → Affichage</span></div>`;
+const legendTiers = () => pcOn() ? legendBareme() : `<div class="legend"><span><i class="tier1" style="background:var(--t1-bg)"></i>&gt; moyenne</span><span><i style="background:var(--t2-bg)"></i>&gt; seuil 1</span><span><i style="background:var(--t3-bg)"></i>&gt; seuil 2 ★</span><span class="muted">Seuil 1 = moyenne des joueurs au-dessus de la moyenne · Seuil 2 = moyenne des joueurs au-dessus du seuil 1 (pondérées par les boules jouées)</span></div>`;
 function statusDot(st){ const m={ok:['ok','Saisie complète et conforme'],bad:['bad','Écart entre boules jouées et boules à jouer'],part:['part','Saisie partielle'],empty:['','Aucune saisie']}[st.state]; return `<span class="dot ${m[0]}" data-tip="${m[1]}"></span>`; }
 function emptyPlayers(){ return `<div class="card"><div class="empty"><b>Aucun joueur inscrit</b>Commencez par inscrire les joueurs de la détection.<br><br><button class="btn pri" data-nav="joueurs">${ICONS.plus}Inscrire des joueurs</button> <button class="btn" data-act="demo">Charger un exemple</button></div></div>`; }
 
@@ -721,7 +731,7 @@ function synthByFam(rows, gp, gt){
 function synthTable(rows, gp, gt){
   const {acc,fams}=synthByFam(rows,gp,gt);
   const G=calcPartie(gp,gt);
-  const line=(lab,o,share,cls='')=>`<tr class="${cls}"><td class="l">${lab}</td><td>${f0(o.n)}</td><td>${share==null?'–':f1(share)}</td><td>${f1(o.I)}</td><td class="${o.V<0?'neg':''}">${f1(o.V)}</td><td>${f1(o.E)}</td></tr>`;
+  const line=(lab,o,share,cls='')=>`<tr class="${cls}"><td class="l">${lab}</td><td>${f0(o.n)}</td><td>${share==null?'–':f1(share)}</td><td>${pcv(o.n?o.I:null,f1(o.I))}</td><td class="${o.V<0?'neg':''}">${pcv(o.n?o.V:null,f1(o.V))}</td><td>${pcv(o.n?o.E:null,f1(o.E))}</td></tr>`;
   let h=`<table class="t"><thead><tr><th class="l">Poste</th><th>Nb BJ</th><th data-tip="Point/Tir : part des boules du poste jouées dans ce domaine. Poste : part de toutes les boules du groupe.">% BJ</th><th>% I</th><th>% V</th><th>% E</th></tr></thead><tbody>`;
   ['point','tir'].forEach(d=>{
     h+=`<tr><td class="l" colspan="6" style="background:var(--surface-2);font-weight:700;font-size:12px;letter-spacing:.05em">${d==='point'?'POINT':'TIR'}</td></tr>`;
@@ -823,7 +833,7 @@ function partieRowStats(pi, pid){
   const r=getPS(pi,pid), c=calcPartie(r.p,r.t), exp=0, n=c.total.n;
   const ok = !n ? '' : (!exp||n===exp) ? '<span class="ok-i" data-tip="Nombre de boules conforme">✓</span>' : `<span class="bad-i" data-tip="${n} boules jouées pour ${exp} à jouer">${n>exp?'+':''}${n-exp}</span>`;
   const tip=(d)=>`data-tip="Point : I ${f1(c.point.I)} · V ${f1(c.point.V)} · E ${f1(c.point.E)}<br>Tir : I ${f1(c.tir.I)} · V ${f1(c.tir.V)} · E ${f1(c.tir.E)}"`;
-  return `<td class="stat bl">${c.point.n||'·'}</td><td class="stat">${c.tir.n||'·'}</td><td class="stat"><b>${n||'·'}</b></td><td class="stat bl" ${tip()}>${n?f1(c.total.I):'·'}</td><td class="stat" ${tip()}>${n?f1(c.total.V):'·'}</td><td class="stat" ${tip()}><b>${n?f1(c.total.E):'·'}</b></td><td class="stat c">${ok}</td>`;
+  return `<td class="stat bl">${c.point.n||'·'}</td><td class="stat">${c.tir.n||'·'}</td><td class="stat"><b>${n||'·'}</b></td><td class="stat bl" ${tip()}>${n?pcv(c.total.I,f1(c.total.I)):'·'}</td><td class="stat" ${tip()}>${n?pcv(c.total.V,f1(c.total.V)):'·'}</td><td class="stat" ${tip()}><b>${n?pcv(c.total.E,f1(c.total.E)):'·'}</b></td><td class="stat c">${ok}</td>`;
 }
 function entryCells(arr, mod, key, n, cls=''){
   let h=''; for(let i=0;i<n;i++){ const v=arr?arr[i]:null; const show=(v==null||v===''||(mod!=='combine'&&mod!=='tdp'&&+v===0))?'':v; h+=`<td class="${i===0?'bl':''}"><input class="cell ${cls}" data-mod="${mod}" data-k="${key}" data-i="${i}" value="${show}" placeholder="·" inputmode="numeric" autocomplete="off"></td>`; } return h;
@@ -865,8 +875,8 @@ function partieStatsHTML(pi){
       <div class="distrow"><span>Point</span>${distBar(p)}<span class="small" style="text-align:right">${f0(sum(p))} BJ</span></div>
       <div class="distrow"><span>Tir</span>${distBar(t)}<span class="small" style="text-align:right">${f0(sum(t))} BJ</span></div>
       <table class="t" style="margin-top:12px"><thead><tr><th class="l"></th><th>Réussies (+ A B C)</th><th>Neutres (D)</th><th>Manquées (E F G −)</th></tr></thead><tbody>
-      <tr><td class="l">Point</td><td>${f1(gP[0])} %</td><td>${f1(gP[1])} %</td><td>${f1(gP[2])} %</td></tr>
-      <tr><td class="l">Tir</td><td>${f1(gT[0])} %</td><td>${f1(gT[1])} %</td><td>${f1(gT[2])} %</td></tr></tbody></table>
+      <tr><td class="l">Point</td><td>${pcv(gP[0],f1(gP[0])+' %')}</td><td>${f1(gP[1])} %</td><td>${f1(gP[2])} %</td></tr>
+      <tr><td class="l">Tir</td><td>${pcv(gT[0],f1(gT[0])+' %')}</td><td>${f1(gT[1])} %</td><td>${f1(gT[2])} %</td></tr></tbody></table>
       <div style="margin-top:12px">${distLegend()}</div></div></div>
   </div>`;
 }
@@ -880,7 +890,7 @@ function atelierRowStats(pid){
   const bad = n && ((eP&&c.point.n!==eP)||(eT&&c.tir.n!==eT));
   const ok = !n?'': bad?`<span class="bad-i" data-tip="Attendu : ${eP} au point et ${eT} au tir">!</span>`:'<span class="ok-i">✓</span>';
   const tip=`data-tip="Point : ${c.point.pts} pts · I ${f1(c.point.I)} · V ${f1(c.point.V)} · E ${f1(c.point.E)}<br>Tir : ${c.tir.pts} pts · I ${f1(c.tir.I)} · V ${f1(c.tir.V)} · E ${f1(c.tir.E)}"`;
-  return `<td class="stat bl ${eP&&c.point.n&&c.point.n!==eP?'warnc':''}">${c.point.n||'·'}</td><td class="stat ${eT&&c.tir.n&&c.tir.n!==eT?'warnc':''}">${c.tir.n||'·'}</td><td class="stat bl" ${tip}><b>${n?c.total.pts:'·'}</b></td><td class="stat" ${tip}>${n?f1(c.total.I):'·'}</td><td class="stat" ${tip}>${n?f1(c.total.V):'·'}</td><td class="stat" ${tip}><b>${n?f1(c.total.E):'·'}</b></td><td class="stat c">${ok}</td>`;
+  return `<td class="stat bl ${eP&&c.point.n&&c.point.n!==eP?'warnc':''}">${c.point.n||'·'}</td><td class="stat ${eT&&c.tir.n&&c.tir.n!==eT?'warnc':''}">${c.tir.n||'·'}</td><td class="stat bl" ${tip}><b>${n?c.total.pts:'·'}</b></td><td class="stat" ${tip}>${n?pcv(c.total.I,f1(c.total.I)):'·'}</td><td class="stat" ${tip}>${n?pcv(c.total.V,f1(c.total.V)):'·'}</td><td class="stat" ${tip}><b>${n?pcv(c.total.E,f1(c.total.E)):'·'}</b></td><td class="stat c">${ok}</td>`;
 }
 function vAteliers(){
   if(!S.players.length) return header('Saisie des ateliers','')+emptyPlayers();
@@ -910,7 +920,7 @@ function vAteliers(){
 function combineRowStats(pid){
   const c=calcCombine(S.combine[pid]); const exp=S.cfg.bjCombine;
   const ok=!c.bj?'':c.bj===exp?'<span class="ok-i">✓</span>':`<span class="bad-i" data-tip="${c.bj} boules notées pour ${exp}">${c.bj-exp}</span>`;
-  return c.seq.map((s,k)=>`<td class="stat ${k===0?'bl':''}" data-tip="${s.pts} pts · réussite ${f0(s.reu)} %">${c.bj?f0(s.pct):'·'}</td>`).join('') + `<td class="stat bl">${c.bj?f0(c.point.pct):'·'}</td><td class="stat">${c.bj?f0(c.tir.pct):'·'}</td><td class="stat bl"><b>${c.bj?c.total.pts:'·'}</b></td><td class="stat"><b>${c.bj?f1(c.total.pct):'·'}</b></td><td class="stat">${c.bj?f0(c.total.reu):'·'}</td><td class="stat c">${ok}</td>`;
+  return c.seq.map((s,k)=>`<td class="stat ${k===0?'bl':''}" data-tip="${s.pts} pts · réussite ${f0(s.reu)} %">${c.bj?pcv(s.pct,f0(s.pct),0):'·'}</td>`).join('') + `<td class="stat bl">${c.bj?pcv(c.point.pct,f0(c.point.pct),0):'·'}</td><td class="stat">${c.bj?pcv(c.tir.pct,f0(c.tir.pct),0):'·'}</td><td class="stat bl"><b>${c.bj?c.total.pts:'·'}</b></td><td class="stat"><b>${c.bj?pcv(c.total.pct,f1(c.total.pct)):'·'}</b></td><td class="stat">${c.bj?pcv(c.total.reu,f0(c.total.reu),0):'·'}</td><td class="stat c">${ok}</td>`;
 }
 function vCombine(){
   if(!S.players.length) return header('Combiné','')+emptyPlayers();
@@ -937,7 +947,7 @@ function cellOne(v, mod, k, i, bl){ return `<td class="${bl?'bl':''}"><input cla
 function tdpRowStats(pid){
   const c=calcTdp(S.tdp[pid]), exp=S.cfg.bjTdp;
   const ok=!c.bj?'':c.bj===exp?'<span class="ok-i">✓</span>':`<span class="bad-i" data-tip="${c.bj} boules notées pour ${exp}">${c.bj-exp}</span>`;
-  return c.dist.map((d,k)=>`<td class="stat ${k===0?'bl':''}" data-tip="${d.pts} pts / 25 · réussite ${f0(d.reu)} %">${c.bj?f0(d.pct):'·'}</td>`).join('') + `<td class="stat bl"><b>${c.bj?c.total.pts:'·'}</b></td><td class="stat">${c.bj?f0(c.total.reu):'·'}</td><td class="stat c">${ok}</td>`;
+  return c.dist.map((d,k)=>`<td class="stat ${k===0?'bl':''}" data-tip="${d.pts} pts / 25 · réussite ${f0(d.reu)} %">${c.bj?pcv(d.pct,f0(d.pct),0):'·'}</td>`).join('') + `<td class="stat bl"><b>${c.bj?pcv(c.total.pts,c.total.pts,0):'·'}</b></td><td class="stat">${c.bj?pcv(c.total.reu,f0(c.total.reu),0):'·'}</td><td class="stat c">${ok}</td>`;
 }
 function vTdp(){
   if(!S.players.length) return header('Tir de précision','')+emptyPlayers();
@@ -993,7 +1003,7 @@ function clsIVE(all, tab){
     else if(o.n && expT && r.P.total.n!==expT){ warn=true; wtip=`${r.P.total.n} boules jouées sur ${expT} à jouer (${r.cu.nb} partie${r.cu.nb>1?'s':''})`; }
     return `<tr class="${concerned||UI.clsFocus?'':'dim'}"><td class="c">${o.n?`<span class="rk ${rank<=3?'r'+rank:''}">${rank}</span>`:''}</td><td class="name">${nameBtn(r.pl)}</td><td class="c">${pbadge(r.pl.poste)}</td>
       <td class="${warn?'warnc':''}" ${warn?`data-tip="${esc(wtip)}"`:''}>${o.n||'–'}${warn?' ⚠':''}</td>
-      ${isAt?(o.n?tierCell(o.pts, th.pts):'<td>–</td>'):`<td class="muted">${r.cu.nb||'–'}</td>`}
+      ${isAt?(o.n?tierCell(o.pts, th.pts, '', f1, false):'<td>–</td>'):`<td class="muted">${r.cu.nb||'–'}</td>`}
       ${o.n?tierCell(o.I,th.I,'bl'):'<td class="bl">–</td>'}${o.n?tierCell(o.V,th.V):'<td>–</td>'}${o.n?tierCell(o.E,th.E):'<td>–</td>'}</tr>`;
   }).join('');
   LAST_TABLE = {name:`classement_${tab}_${dom}`, rows:[['Rang','Joueur','Poste','BJ',isAt?'Points':'Parties','Intensité','Volume','Efficacité'], ...rows.map((x,i)=>[x.o.n?i+1:'', x.r.pl.nom, x.r.pl.poste, x.o.n, isAt?x.o.pts:x.r.cu.nb, x.o.I, x.o.V, x.o.E])]};
@@ -1021,7 +1031,7 @@ function sortableTable(cfg){
   let rank=0;
   LAST_TABLE={name:cfg.id, rows:[['Rang','Joueur','Poste',...cfg.cols.map(c=>(c.csv||c.lab).replace(/<[^>]+>/g,''))], ...rows.map((r,i)=>[r.has?i+1:'', r.pl.nom, r.pl.poste, ...cfg.cols.map(c=>r.vals[c.k])])]};
   return `<table class="t"><thead>${cfg.head||''}<tr><th class="c">Rang</th><th class="name">Joueur</th><th class="c">Poste</th>${cfg.cols.map(c=>`<th class="sort ${k===c.k?'sorted':''} ${c.cls||''}" data-act="${cfg.act}" data-v="${c.k}" ${c.tip?`data-tip="${c.tip}"`:''}>${c.lab}${k===c.k?(dir<0?' ↓':' ↑'):''}</th>`).join('')}</tr></thead>
-  <tbody>${rows.map(r=>{ if(r.has) rank++; return `<tr><td class="c">${r.has?`<span class="rk ${rank<=3?'r'+rank:''}">${rank}</span>`:''}</td><td class="name">${nameBtn(r.pl)}</td><td class="c">${pbadge(r.pl.poste)}</td>${cfg.cols.map(c=>{ const v=r.vals[c.k]; if(!r.has||v==null) return `<td class="${c.cls||''}">–</td>`; return c.tier? tierCell(v,c.tier,c.cls||'',c.fmt||f1) : `<td class="${c.cls||''}">${c.fmt?c.fmt(v):f1(v)}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table>`;
+  <tbody>${rows.map(r=>{ if(r.has) rank++; return `<tr><td class="c">${r.has?`<span class="rk ${rank<=3?'r'+rank:''}">${rank}</span>`:''}</td><td class="name">${nameBtn(r.pl)}</td><td class="c">${pbadge(r.pl.poste)}</td>${cfg.cols.map(c=>{ const v=r.vals[c.k]; if(!r.has||v==null) return `<td class="${c.cls||''}">–</td>`; return c.tier? tierCell(v,c.tier,c.cls||'',c.fmt||f1) : `<td class="${c.cls||''}">${c.pc?pcv(v,(c.fmt||f1)(v),c.fmt===f0?0:1):(c.fmt?c.fmt(v):f1(v))}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table>`;
 }
 function simpleTh(rows, getV){ const items=rows.map(r=>({v:getV(r), w:getV(r)==null?0:1})).filter(x=>x.w); const m=items.length?sum(items.map(x=>x.v))/items.length:0; return seuils(items,m); }
 function clsCombine(all){
@@ -1029,7 +1039,7 @@ function clsCombine(all){
   const rows=all.rows.map(r=>({pl:r.pl, has:!!r.C.bj, vals:{s0:r.C.seq[0].pct,s1:r.C.seq[1].pct,s2:r.C.seq[2].pct,s3:r.C.seq[3].pct, pp:r.C.point.pct, tp:r.C.tir.pct, pts:r.C.total.pts, pct:r.C.total.pct, reu:r.C.total.reu}}));
   const thT=simpleTh(rows.filter(r=>r.has), r=>r.vals.pct);
   const key=UI.cmbSort||'pct';
-  const cols=[...D.map((d,k)=>({k:'s'+k, lab:`S${k+1} · ${d} m`, fmt:f0, cls:k===0?'bl':''})), {k:'pp',lab:'% Point',fmt:f0,cls:'bl'},{k:'tp',lab:'% Tir',fmt:f0},{k:'pts',lab:'Pts /48',fmt:f0,cls:'bl'},{k:'pct',lab:'% Total',tier:thT},{k:'reu',lab:'% Réussite',fmt:f0,tip:'Boules ayant rapporté au moins 1 point'}];
+  const cols=[...D.map((d,k)=>({k:'s'+k, lab:`S${k+1} · ${d} m`, fmt:f0, cls:k===0?'bl':'', pc:true})), {k:'pp',lab:'% Point',fmt:f0,cls:'bl',pc:true},{k:'tp',lab:'% Tir',fmt:f0,pc:true},{k:'pts',lab:'Pts /48',fmt:f0,cls:'bl'},{k:'pct',lab:'% Total',tier:thT},{k:'reu',lab:'% Réussite',fmt:f0,pc:true,tip:'Boules ayant rapporté au moins 1 point'}];
   return `<div class="card"><div class="card-b" style="padding:10px 16px;border-bottom:1px solid var(--line)"><div class="thr"><span>% Total : moy. <b>${f1(thT.moy)}</b> · S1 <b>${f1(thT.s1)}</b> · S2 <b>${f1(thT.s2)}</b></span><span class="muted">Cliquez un en-tête pour trier</span></div></div>
     <div class="tw" style="max-height:70vh">${sortableTable({id:'classement_combine', act:'cmbSort', cols, rows, sortKey:key, dir:UI.cmbDir})}</div><div class="card-b">${legendTiers()}</div></div>`;
 }
@@ -1038,7 +1048,7 @@ function clsTdp(all){
   const rows=all.rows.map(r=>({pl:r.pl, has:!!r.T.bj, vals:Object.assign({}, ...r.T.dist.map((d,k)=>({['d'+k]:d.pct, ['dp'+k]:d.pts})), ...r.T.at.map((a,k)=>({['a'+k]:a.pct, ['ap'+k]:a.pts})), {pts:r.T.total.pts, reu:r.T.total.reu})}));
   const thT=simpleTh(rows.filter(r=>r.has), r=>r.vals.pts);
   const key=UI.tdpSort||'pts';
-  const cols=[...D.map((d,k)=>({k:'dp'+k, lab:`${d} m`, csv:`Pts ${d} m`, fmt:f0, cls:k===0?'bl':'', tip:'Total de points à cette distance (sur 25)'})), ...D.map((d,k)=>({k:'d'+k, lab:`${d} m`, csv:`% ${d} m`, fmt:f0, cls:k===0?'bl':''})), ...[0,1,2,3,4].map(k=>({k:'ap'+k, lab:`A${k+1}`, csv:`Pts A${k+1}`, fmt:f0, cls:k===0?'bl':'', tip:'Total de points de l’atelier (sur 20)'})), ...[0,1,2,3,4].map(k=>({k:'a'+k, lab:`A${k+1}`, csv:`% A${k+1}`, fmt:f0, cls:k===0?'bl':''})), {k:'pts',lab:'Total /100',tier:thT,cls:'bl',fmt:f0},{k:'reu',lab:'% Réussite',fmt:f0}];
+  const cols=[...D.map((d,k)=>({k:'dp'+k, lab:`${d} m`, csv:`Pts ${d} m`, fmt:f0, cls:k===0?'bl':'', tip:'Total de points à cette distance (sur 25)'})), ...D.map((d,k)=>({k:'d'+k, lab:`${d} m`, csv:`% ${d} m`, fmt:f0, cls:k===0?'bl':'', pc:true})), ...[0,1,2,3,4].map(k=>({k:'ap'+k, lab:`A${k+1}`, csv:`Pts A${k+1}`, fmt:f0, cls:k===0?'bl':'', tip:'Total de points de l’atelier (sur 20)'})), ...[0,1,2,3,4].map(k=>({k:'a'+k, lab:`A${k+1}`, csv:`% A${k+1}`, fmt:f0, cls:k===0?'bl':'', pc:true})), {k:'pts',lab:'Total /100',tier:thT,cls:'bl',fmt:f0},{k:'reu',lab:'% Réussite',fmt:f0,pc:true}];
   const head=`<tr><th colspan="3"></th><th colspan="4" class="grp">Points par distance /25</th><th colspan="4" class="grp">% points par distance</th><th colspan="5" class="grp">Points par atelier /20</th><th colspan="5" class="grp">% points par atelier</th><th colspan="2" class="grp">Total</th></tr>`;
   return `<div class="card"><div class="card-b" style="padding:10px 16px;border-bottom:1px solid var(--line)"><div class="thr"><span>Total : moy. <b>${f1(thT.moy)}</b> · S1 <b>${f1(thT.s1)}</b> · S2 <b>${f1(thT.s2)}</b></span><span class="muted">Cliquez un en-tête pour trier</span></div></div>
     <div class="tw" style="max-height:70vh">${sortableTable({id:'classement_tir_precision', act:'tdpSort', cols, rows, sortKey:key, dir:UI.tdpDir, head})}</div><div class="card-b">${legendTiers()}</div></div>`;
@@ -1059,7 +1069,7 @@ function vRegularite(){
     const sd=v.length>1?Math.sqrt(sum(v.map(x=>(x-m)**2))/(v.length-1)):null;
     return {r, d, vals, glob:r.P[d].n?r.P[d][met]:null, m, sd, nHi:v.filter(x=>x>hi).length, nLo:v.filter(x=>x<lo).length, nb:v.length};
   }).sort((a,b)=>(b.glob!=null)-(a.glob!=null) || (b.glob??0)-(a.glob??0));
-  const cls=v=> v==null?'':v<lo?'lo':v>hi?'hi':'';
+  const cls=v=> v==null?'': pcOn() ? 'pcb '+pcCls(v) : v<lo?'lo':v>hi?'hi':'';
   const ML={I:'Intensité',V:'Volume',E:'Efficacité'};
   LAST_TABLE={name:`regularite_${met}`, rows:[['Joueur','Poste','Domaine',...parts.map(p=>p.nom),'Global','Écart-type',`Nb > ${hi}`,`Nb < ${lo}`], ...rows.map(x=>[x.r.pl.nom,x.r.pl.poste,DOM_LABEL[x.d],...x.vals,x.glob,x.sd,x.nHi,x.nLo])]};
   const meanRow = parts.map((p,i)=>{ const g=all.gameMeans[i]; return `<td class="${i===0?'bl':''}">${g.total.n?f1(UI.regDom==='auto'?g.total[met]:g[UI.regDom][met]):'–'}</td>`; }).join('');
@@ -1076,7 +1086,7 @@ function vRegularite(){
         <tr><td class="name muted" style="font-weight:500">Moyenne des notes</td><td></td><td class="c muted small">${UI.regDom==='auto'?'Tot.':DOM_LABEL[UI.regDom]}</td>${meanRow}<td class="bl"></td><td></td><td></td><td></td></tr>
         ${rows.map(x=>`<tr><td class="name">${nameBtn(x.r.pl)}</td><td class="c">${pbadge(x.r.pl.poste)}</td><td class="c small muted">${DOM_LABEL[x.d]}</td>${x.vals.map((v,i)=>`<td class="${i===0?'bl':''}"><span class="tier ${cls(v)}" style="min-width:42px">${v==null?'–':f1(v)}</span></td>`).join('')}<td class="bl"><b>${f1(x.glob)}</b></td><td class="muted">${x.sd==null?'–':f1(x.sd)}</td><td>${x.nb?x.nHi:'–'}</td><td>${x.nb?x.nLo:'–'}</td></tr>`).join('')}
       </tbody></table></div>
-    <div class="card-b"><div class="legend"><span><i style="background:var(--lo-bg)"></i>inférieur à ${lo}</span><span><i style="background:var(--hi-bg)"></i>supérieur à ${hi}</span><span class="muted">Seuils modifiables ci-dessus (valeurs par défaut du classeur : I 50/70 · V 10/40 · E 30/55)</span></div></div>
+    <div class="card-b">${pcOn()?legendBareme():''}<div class="legend" ${pcOn()?'style="display:none"':''}><span><i style="background:var(--lo-bg)"></i>inférieur à ${lo}</span><span><i style="background:var(--hi-bg)"></i>supérieur à ${hi}</span><span class="muted">Seuils modifiables ci-dessus (valeurs par défaut du classeur : I 50/70 · V 10/40 · E 30/55)</span></div></div>
   </div>`;
 }
 
@@ -1094,7 +1104,7 @@ function vSelection(){
   all.rows.forEach(r=>{ const c=cnt[r.fam]; if(!c) return; c.n++; const s=S.sel[r.pl.id]; if(s==='R') c.R++; if(s==='S') c.S++; });
   const totalW=sum(Object.values(cfg.poids));
   const sh=(k,lab,cls='')=>`<th class="sort ${sk===k?'sorted':''} ${cls}" data-act="selSort" data-v="${k}">${lab}${sk===k?(sd<0?' ↓':' ↑'):''}</th>`;
-  const critCell=(o,k,fmt=f1)=>{ const v=o.raw[k]; if(v==null) return `<td class="muted">–</td>`; return `<td data-tip="Valeur ${fmt(v)} · note normalisée ${f0(o.norm[k])}/100"><span>${fmt(v)}</span> <span class="small muted">${f0(o.norm[k])}</span></td>`; };
+  const critCell=(o,k,fmt=f1)=>{ const v=o.raw[k]; if(v==null) return `<td class="muted">–</td>`; return `<td data-tip="Valeur ${fmt(v)} · note normalisée ${f0(o.norm[k])}/100"><span>${pcv(v,fmt(v),fmt===f0?0:1)}</span> <span class="small muted">${f0(o.norm[k])}</span></td>`; };
   LAST_TABLE={name:'selection', rows:[['Rang famille','Joueur','Poste','Domaine','Parties E','Ateliers E','Combiné %','TdP /100','Nb parties','Score','Statut','Note'], ...rows.map(r=>{ const o=out.get(r.pl.id); return [o.rangFam, r.pl.nom, r.pl.poste, DOM_LABEL[r.dom], o.raw.parties, o.raw.ateliers, o.raw.combine, o.raw.tdp, r.cu.nb, o.score, {R:'Retenu',S:'Réserve',X:'Écarté'}[S.sel[r.pl.id]]||'', S.notes[r.pl.id]||'']; })]};
   return header('Sélection', 'Score composite pondéré, calculé dans la famille de poste de chaque joueur — à croiser avec l’œil des éducateurs'+grpLabel(), `${grpSelect()}<button class="btn" data-act="autoSel">${ICONS.wand}Proposer une sélection</button><button class="btn" data-act="exportTable">${ICONS.down}CSV</button><button class="btn" data-act="print">${ICONS.print}Imprimer</button>`) + `
   <div class="stack">
@@ -1161,7 +1171,7 @@ function openFiche(id){
   const pl=playerById(id); if(!pl) return;
   const all=computeAll(), r=all.rows.find(x=>x.pl.id===id), {out}=computeSelection(all), o=out.get(id);
   const d=r.dom, thP=all.th.parties[d], thA=all.th.ateliers[d];
-  const kpi=(lab,v,th,sub,fmt=f1)=>`<div class="kpi" style="box-shadow:none"><div class="k">${lab}</div><div class="v" style="font-size:22px">${v==null?'–':th?`<span class="tier ${tierOf(v,th)?'tier'+tierOf(v,th):''}" style="padding:0 6px">${fmt(v)}</span>`:fmt(v)}</div><div class="s">${sub||''}</div></div>`;
+  const kpi=(lab,v,th,sub,fmt=f1)=>`<div class="kpi" style="box-shadow:none"><div class="k">${lab}</div><div class="v" style="font-size:22px">${v==null?'–':pcOn()?`<span class="tier pcb ${pcCls(v,fmt===f0?0:1)} ${th&&tierOf(v,th)===3?'pc-star':''}" style="padding:0 6px" ${th?`data-tip="${tipTier(tierOf(v,th),th)}"`:''}>${fmt(v)}</span>`:th?`<span class="tier ${tierOf(v,th)?'tier'+tierOf(v,th):''}" style="padding:0 6px">${fmt(v)}</span>`:fmt(v)}</div><div class="s">${sub||''}</div></div>`;
   const parts=all.parts;
   const ser=[{name:pl.nom, c:'var(--s1)', v:r.perGame.map(g=>g&&g[d].n?g[d].E:null)}];
   const ref={name:'Moyenne du groupe', v:all.gameMeans.map(g=>g[d].n?g[d].E:null)};
@@ -1188,8 +1198,8 @@ function openFiche(id){
     ${niveauHTML(id)}
     <div class="card" style="box-shadow:none"><div class="card-h"><h3>Détail des parties</h3></div><div class="tw"><table class="t">
       <thead><tr><th class="l">Partie</th><th>BJ point</th><th>BJ tir</th><th class="bl">I point</th><th>V point</th><th>E point</th><th class="bl">I tir</th><th>V tir</th><th>E tir</th><th class="bl">I total</th><th>V total</th><th>E total</th></tr></thead>
-      <tbody>${parts.map((p,i)=>{ const g=r.perGame[i]; if(!g||!g.total.n) return `<tr><td class="l">${esc(p.nom)}</td><td colspan="11" class="c muted">non joué</td></tr>`; return `<tr><td class="l">${esc(p.nom)}</td><td>${g.point.n}</td><td>${g.tir.n}</td><td class="bl">${g.point.n?f1(g.point.I):'–'}</td><td>${g.point.n?f1(g.point.V):'–'}</td><td>${g.point.n?f1(g.point.E):'–'}</td><td class="bl">${g.tir.n?f1(g.tir.I):'–'}</td><td>${g.tir.n?f1(g.tir.V):'–'}</td><td>${g.tir.n?f1(g.tir.E):'–'}</td><td class="bl">${f1(g.total.I)}</td><td>${f1(g.total.V)}</td><td><b>${f1(g.total.E)}</b></td></tr>`; }).join('')}
-      <tr style="font-weight:700"><td class="l">Cumul</td><td>${r.P.point.n}</td><td>${r.P.tir.n}</td><td class="bl">${f1(r.P.point.I)}</td><td>${f1(r.P.point.V)}</td><td>${f1(r.P.point.E)}</td><td class="bl">${f1(r.P.tir.I)}</td><td>${f1(r.P.tir.V)}</td><td>${f1(r.P.tir.E)}</td><td class="bl">${f1(r.P.total.I)}</td><td>${f1(r.P.total.V)}</td><td>${f1(r.P.total.E)}</td></tr></tbody></table></div></div>
+      <tbody>${parts.map((p,i)=>{ const g=r.perGame[i]; if(!g||!g.total.n) return `<tr><td class="l">${esc(p.nom)}</td><td colspan="11" class="c muted">non joué</td></tr>`; return `<tr><td class="l">${esc(p.nom)}</td><td>${g.point.n}</td><td>${g.tir.n}</td><td class="bl">${g.point.n?pcv(g.point.I,f1(g.point.I)):'–'}</td><td>${g.point.n?pcv(g.point.V,f1(g.point.V)):'–'}</td><td>${g.point.n?pcv(g.point.E,f1(g.point.E)):'–'}</td><td class="bl">${g.tir.n?pcv(g.tir.I,f1(g.tir.I)):'–'}</td><td>${g.tir.n?pcv(g.tir.V,f1(g.tir.V)):'–'}</td><td>${g.tir.n?pcv(g.tir.E,f1(g.tir.E)):'–'}</td><td class="bl">${pcv(g.total.I,f1(g.total.I))}</td><td>${pcv(g.total.V,f1(g.total.V))}</td><td><b>${pcv(g.total.E,f1(g.total.E))}</b></td></tr>`; }).join('')}
+      <tr style="font-weight:700"><td class="l">Cumul</td><td>${r.P.point.n}</td><td>${r.P.tir.n}</td><td class="bl">${pcv(r.P.point.I,f1(r.P.point.I))}</td><td>${pcv(r.P.point.V,f1(r.P.point.V))}</td><td>${pcv(r.P.point.E,f1(r.P.point.E))}</td><td class="bl">${pcv(r.P.tir.I,f1(r.P.tir.I))}</td><td>${pcv(r.P.tir.V,f1(r.P.tir.V))}</td><td>${pcv(r.P.tir.E,f1(r.P.tir.E))}</td><td class="bl">${pcv(r.P.total.I,f1(r.P.total.I))}</td><td>${pcv(r.P.total.V,f1(r.P.total.V))}</td><td>${pcv(r.P.total.E,f1(r.P.total.E))}</td></tr></tbody></table></div></div>
     <div class="field"><label>Observations des encadrants</label><textarea class="inp" rows="3" data-note="${id}" placeholder="Comportement, technique, mental, points de progression…">${esc(S.notes[id]||'')}</textarea></div>
   </div>`);
 }
@@ -1228,6 +1238,10 @@ function vParams(){
       <div class="field"><label>Ateliers tir — boules / joueur</label><input class="inp" data-cfg="bjAtTir" value="${c.bjAtTir}"></div>
       <div class="field"><label>Combiné — distances des 4 séquences (m)</label><input class="inp" data-dist="combineDist" value="${c.combineDist.join(' / ')}"></div>
       <div class="field"><label>Tir de précision — 4 distances (m)</label><input class="inp" data-dist="tdpDist" value="${c.tdpDist.join(' / ')}"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><h3>Affichage</h3><span class="hint">couleur des statistiques en pourcentage (parties, classements, régularité, sélection, fiches, comptes rendus)</span></div><div class="card-b grid g2">
+      <div class="field"><label>Code couleur des pourcentages</label><select class="inp" data-cfgs="couleurs"><option value="bareme" ${c.couleurs!=='seuils'?'selected':''}>Barème fixe : rouge &lt; 25 % · orange &lt; 50 % · jaune &lt; 75 % · vert ≥ 75 %</option><option value="seuils" ${c.couleurs==='seuils'?'selected':''}>Seuils du groupe : moyenne, seuil 1, seuil 2</option></select></div>
+      <div>${legendBareme()}</div>
     </div></div>
     <div class="card"><div class="card-h"><h3>Sauvegarde</h3><span class="hint">les données restent dans ce navigateur ; exportez-les pour les transmettre ou les archiver</span></div><div class="card-b row">
       <button class="btn pri" data-act="exportJSON">${ICONS.down}Exporter (.json)</button>
@@ -1734,7 +1748,7 @@ function rapportHTML(pl, ctx){
       </div>
       <div class="alert info" style="display:block"><b>Synthèse automatique</b><ul style="margin:6px 0 0;padding-left:18px">${phr.map(p=>`<li style="margin:3px 0">${p}</li>`).join('')}</ul></div>
       <div class="tw"><table class="t"><thead><tr><th class="l">Indicateur</th><th>Nb</th><th>Moyenne</th><th data-tip="Moyenne du groupe sur les mêmes parties / sessions">Groupe</th><th>Mini</th><th>Maxi</th><th data-tip="Écart-type : dispersion des résultats">σ</th><th data-tip="Intervalle de confiance à 95 % de la moyenne">IC 95 %</th><th class="l">Tendance sur la période</th></tr></thead>
-      <tbody>${rows.map(o=>`<tr><td class="l">${o.r.lab}</td><td>${o.stt.n||'–'}</td><td><b>${f1(o.stt.mean)}</b></td><td class="muted">${f1(o.gs.mean)}</td>
+      <tbody>${rows.map(o=>`<tr><td class="l">${o.r.lab}</td><td>${o.stt.n||'–'}</td><td><b>${o.r.k==='aP'?f1(o.stt.mean):pcv(o.stt.mean,f1(o.stt.mean))}</b></td><td class="muted">${f1(o.gs.mean)}</td>
         <td ${o.stt.n?`data-tip="${esc(o.s.full[o.iMin])}"`:''}>${f1(o.stt.min)}</td><td ${o.stt.n?`data-tip="${esc(o.s.full[o.iMax])}"`:''}>${f1(o.stt.max)}</td><td>${o.stt.sd==null?'–':f1(o.stt.sd)}</td><td class="small">${o.stt.lo==null?'–':f1(o.stt.lo)+' – '+f1(o.stt.hi)}</td>
         <td class="l small"><span class="${o.tt.cls}">${o.tt.ico}</span> ${o.tt.txt}</td></tr>`).join('')}</tbody></table></div>
       ${charts.length?`<div class="legend"><span><i style="background:var(--s1)"></i>${esc(pl.nom)}</span><span><i style="background:#eb6834;height:3px"></i>Tendance (droite de régression)</span><span><i style="background:var(--ref);height:2px"></i>Moyenne du groupe</span></div>`:''}
@@ -1919,13 +1933,6 @@ try{ const th=localStorage.getItem(STORE_KEY+'-theme'); if(th) document.document
 VIEW = UI.view || 'dash';
 render();
 
-</script>
-
-<script>
-/* Application installable : activation du service worker (uniquement en ligne, pas en fichier local) */
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
-}
 </script>
 </body>
 </html>
