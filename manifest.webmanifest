@@ -1,0 +1,17 @@
+{
+  "name": "Suivi de détection F.F.P.J.P.",
+  "short_name": "Suivi détection",
+  "description": "Évaluation des joueurs, classements et sélection en détection de pétanque.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e4194",
+  "theme_color": "#0e4194",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
