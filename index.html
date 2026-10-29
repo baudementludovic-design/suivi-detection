@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Suivi de détection</title>
+<meta name="theme-color" content="#0e4194">
+<meta name="description" content="Évaluation des joueurs, classements et sélection en détection de pétanque — F.F.P.J.P.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Suivi détection">
 <style>
 :root{
   color-scheme: light;
@@ -1933,6 +1942,13 @@ try{ const th=localStorage.getItem(STORE_KEY+'-theme'); if(th) document.document
 VIEW = UI.view || 'dash';
 render();
 
+</script>
+
+<script>
+/* Application installable : activation du service worker (uniquement en ligne, pas en fichier local) */
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
 </script>
 </body>
 </html>
