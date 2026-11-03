@@ -284,6 +284,23 @@ kbd{font:600 11px system-ui;border:1px solid var(--line-2);border-bottom-width:2
 .pcb.pc-g{background:var(--pc-g);color:var(--pc-g-ink)}
 .pcb.pc-star::after{content:" ★";font-size:10px}
 @media print{.pcb{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+/* Catégories d'âge et classements filtrés */
+.catb{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11.5px;font-weight:600}
+.catb.cat-a{background:#dff3e5;color:#1d6b37}
+.catb.cat-j{background:#e3eefb;color:#184f95}
+.catb.cat-e{background:#ece8fb;color:#4a3aa7}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .catb.cat-a{background:#173f25;color:#a8e6b9}:root:not([data-theme="light"]) .catb.cat-j{background:#1b2c45;color:#9ec5f4}:root:not([data-theme="light"]) .catb.cat-e{background:#2a2550;color:#b9b0f2}}
+:root[data-theme="dark"] .catb.cat-a{background:#173f25;color:#a8e6b9}:root[data-theme="dark"] .catb.cat-j{background:#1b2c45;color:#9ec5f4}:root[data-theme="dark"] .catb.cat-e{background:#2a2550;color:#b9b0f2}
+.printhead{display:none}
+@media print{
+  .printhead{display:block;margin-bottom:8px;border-bottom:2px solid #0e4194;padding-bottom:6px}
+  .cls-page .tw{max-height:none!important}
+  .cls-page .t{font-size:10px}
+  .cls-page .t th,.cls-page .t td{padding:3px 4px}
+  .cls-section + .cls-section{break-before:page}
+  .cls-page .card-h{break-after:avoid}
+  .cls-page .card{break-inside:auto}
+}
 /* Impression de la fiche joueur : seule la fiche est imprimée (pas la page en dessous) */
 @media print{
   body:has(#modal .modal-bg) .app{display:none!important}
@@ -398,8 +415,12 @@ const f0 = v => (v==null||isNaN(v)) ? '–' : Math.round(v).toLocaleString('fr-F
 const zeros = n => Array(n).fill(0);
 const activeParties = () => S.parties.slice(0, S.cfg.nbParties).map((p,i)=>({...p, idx:i}));
 /* Parties retenues pour les analyses : toutes, ou celles du regroupement filtré */
-const grpFiltre = () => (typeof UI!=='undefined' && UI.grp && UI.grp!=='all' && S.groupes.some(g=>g.id===UI.grp)) ? UI.grp : null;
-const analysisParties = () => { const g=grpFiltre(); return activeParties().filter(p=>!g||p.g===g); };
+/* Regroupements retenus pour les analyses : UI.grps (un ou plusieurs ; vide = tous) */
+const grpIds = () => { if(typeof UI==='undefined') return []; const ok=id=>S.groupes.some(g=>g.id===id);
+  if(Array.isArray(UI.grps)) return UI.grps.filter(ok);
+  return (UI.grp && UI.grp!=='all' && ok(UI.grp)) ? [UI.grp] : []; };
+const grpFiltre = () => { const a=grpIds(); return a.length===1 ? a[0] : null; };
+const analysisParties = () => { const a=grpIds(); return activeParties().filter(p=>!a.length||a.includes(p.g)); };
 const groupeById = id => S.groupes.find(g=>g.id===id);
 const playerById = id => S.players.find(p=>p.id===id);
 const sortedPlayers = () => [...S.players].sort((a,b)=>a.nom.localeCompare(b.nom,'fr'));
@@ -436,7 +457,7 @@ function cumulParties(pid){
 }
 const expectedParties = () => 0; // nombre de boules à jouer par partie supprimé : pas de contrôle
 /* Sessions retenues pour les analyses (filtre regroupement) et cumul par joueur */
-const analysisSessions = kind => { const g=grpFiltre(); return S.sessions[kind].filter(x=>!g||x.g===g); };
+const analysisSessions = kind => { const a=grpIds(); return S.sessions[kind].filter(x=>!a.length||a.includes(x.g)); };
 function avgResults(list){ // moyenne champ par champ de résultats de même forme
   const f=(vals)=> typeof vals[0]==='number' ? sum(vals)/vals.length : Array.isArray(vals[0]) ? vals[0].map((_,i)=>f(vals.map(v=>v[i]))) : Object.fromEntries(Object.keys(vals[0]).map(k=>[k,f(vals.map(v=>v[k]))]));
   return f(list);
@@ -517,9 +538,9 @@ function seuils(items, moy){
 const tierOf = (v,th) => (th.s2!=null&&v>th.s2)?3:(th.s1!=null&&v>th.s1)?2:(v>th.moy)?1:0;
 
 /* ---------- Agrégats de groupe ---------- */
-function computeAll(){
+function computeAll(pf){ // pf : filtre facultatif des joueurs (classements par région / catégorie)
   const parts = analysisParties();
-  const rows = S.players.map(pl=>{
+  const rows = S.players.filter(pf||(()=>true)).map(pl=>{
     const cu = cumulParties(pl.id);
     const P = calcPartie(cu.p, cu.t);
     const A = cumulAteliers(pl.id);
@@ -684,10 +705,10 @@ function afterRender(){ const h=afterHooks; afterHooks=[]; h.forEach(f=>f()); }
 /* Filtre « Regroupement » des analyses (affiché seulement s'il y a plusieurs regroupements) */
 function grpSelect(){
   if(S.groupes.length<2) return '';
-  const g=grpFiltre()||'all';
-  return `<select class="inp" data-grpf style="width:auto;min-width:200px" data-tip="Parties prises en compte dans les calculs"><option value="all" ${g==='all'?'selected':''}>Tous les regroupements</option>${S.groupes.map(x=>`<option value="${x.id}" ${g===x.id?'selected':''}>${esc(x.nom)}${x.date?' · '+esc(new Date(x.date).toLocaleDateString('fr-FR')):''}</option>`).join('')}</select>`;
+  const ids=grpIds(), g=ids.length>1?'multi':(ids[0]||'all');
+  return `<select class="inp" data-grpf style="width:auto;min-width:200px" data-tip="Parties prises en compte dans les calculs"><option value="all" ${g==='all'?'selected':''}>Tous les regroupements</option>${ids.length>1?`<option value="multi" selected>${ids.length} regroupements sélectionnés</option>`:''}${S.groupes.map(x=>`<option value="${x.id}" ${g===x.id?'selected':''}>${esc(x.nom)}${x.date?' · '+esc(new Date(x.date).toLocaleDateString('fr-FR')):''}</option>`).join('')}</select>`;
 }
-const grpLabel = () => { const g=grpFiltre(); return g ? ' · '+esc(groupeById(g).nom) : ''; };
+const grpLabel = () => { const a=grpIds(); return a.length ? ' · '+a.map(id=>esc(groupeById(id).nom)).join(', ') : ''; };
 function header(title, sub, actions=''){
   return `<div class="topbar"><div><h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div><div class="actions">${actions}</div></div>`;
 }
@@ -808,16 +829,17 @@ function vJoueurs(){
   <div class="stack">
   <div class="card">
     <div class="card-h"><input class="inp search" placeholder="Rechercher un joueur…" data-ui="search" value="${esc(UI.search)}"><div class="right"><span class="hint">Les modifications sont enregistrées automatiquement</span></div></div>
-    <div class="tw"><table class="t"><thead><tr><th class="c" style="width:40px">N°</th><th class="l">NOM Prénom</th><th class="l" style="width:80px">CD</th><th class="l">Ligue</th><th class="l" style="width:90px">Année</th><th class="l" style="width:200px">Poste</th><th class="l">Club</th><th></th></tr></thead>
+    <div class="tw"><table class="t"><thead><tr><th class="c" style="width:40px">N°</th><th class="l">NOM Prénom</th><th class="l" style="width:80px">CD</th><th class="l">Ligue</th><th class="l" style="width:90px">Année</th><th class="l" style="width:100px" data-tip="Selon l'âge atteint dans l'année en cours : 12-13 ans Avenirs · 14-16 ans Jeunes · 17 ans Espoirs">Catégorie</th><th class="l" style="width:200px">Poste</th><th class="l">Club</th><th></th></tr></thead>
     <tbody>${list.length?list.map((p,i)=>`<tr data-id="${p.id}">
       <td class="c muted">${i+1}</td>
       <td class="l"><input class="inp" data-pf="nom" value="${esc(p.nom)}" placeholder="NOM Prénom" style="min-width:180px"></td>
       <td class="l"><input class="inp" data-pf="cd" value="${esc(p.cd)}" placeholder="38" style="width:64px"></td>
       <td class="l small muted" data-ligue>${esc(ligueOf(p.cd))}</td>
       <td class="l"><input class="inp" data-pf="annee" value="${esc(p.annee)}" placeholder="2010" style="width:74px" inputmode="numeric"></td>
+      <td class="l" data-cat>${catBadge(p.annee)}</td>
       <td class="l"><select class="inp" data-pf="poste">${posteOpts(p.poste)}</select></td>
       <td class="l"><input class="inp" data-pf="club" value="${esc(p.club)}" placeholder="Club" style="min-width:140px"></td>
-      <td class="c"><button class="btn sm ghost" data-act="fiche" data-id="${p.id}">Fiche</button><button class="btn sm ghost danger" data-act="delPlayer" data-id="${p.id}" data-tip="Supprimer le joueur et ses notes">${ICONS.trash}</button></td></tr>`).join(''):`<tr><td colspan="8"><div class="empty"><b>Aucun joueur</b>Ajoutez des joueurs un par un ou importez une liste ci-dessous.</div></td></tr>`}</tbody></table></div>
+      <td class="c"><button class="btn sm ghost" data-act="fiche" data-id="${p.id}">Fiche</button><button class="btn sm ghost danger" data-act="delPlayer" data-id="${p.id}" data-tip="Supprimer le joueur et ses notes">${ICONS.trash}</button></td></tr>`).join(''):`<tr><td colspan="9"><div class="empty"><b>Aucun joueur</b>Ajoutez des joueurs un par un ou importez une liste ci-dessous.</div></td></tr>`}</tbody></table></div>
   </div>
   <details class="help"><summary>Importer une liste de joueurs (copier-coller depuis Excel)</summary>
     <p>Une ligne par joueur, colonnes séparées par des tabulations ou des points-virgules : <code>NOM Prénom ; CD ; Année ; Poste ; Club</code>. Le poste accepte le code (<code>P, PM, M, MP, MT, T, TM</code>) ou le libellé (<code>POINTEUR MILIEU</code>…).</p>
@@ -987,9 +1009,9 @@ function vClassements(){
   if(!['parties','ateliers','combine','tdp'].includes(UI.clsTab)) UI.clsTab='parties';
   const tab=UI.clsTab;
   const tabs=`<div class="seg">${[['parties','Parties'],['ateliers','Ateliers'],['combine','Combiné'],['tdp','Tir de précision']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-act="clsTab" data-v="${k}">${l}</button>`).join('')}</div>`;
-  const all=computeAll();
-  let body = tab==='parties'||tab==='ateliers' ? clsIVE(all, tab) : tab==='combine' ? clsCombine(all) : clsTdp(all);
-  return header('Classements', 'Classement des joueurs par indicateur, avec les seuils de détection'+grpLabel(), `${grpSelect()}<button class="btn" data-act="exportTable">${ICONS.down}CSV</button><button class="btn" data-act="print">${ICONS.print}Imprimer</button>`) + `<div class="stack"><div class="row">${tabs}</div>${body}</div>`;
+  const all=computeAll(clsFiltreJoueur());
+  let body = UI.clsPdfAll ? clsTousPdf(all) : tab==='parties'||tab==='ateliers' ? clsIVE(all, tab) : tab==='combine' ? clsCombine(all) : clsTdp(all);
+  return header('Classements', 'Classement des joueurs par indicateur, avec les seuils de détection'+grpLabel()+clsFiltreLabel(), `<button class="btn" data-act="exportTable">${ICONS.down}CSV</button><button class="btn" data-act="print">${ICONS.print}Imprimer</button>`) + `<div class="stack cls-page">${clsEntetePdf()}<div class="row noprint">${tabs}</div>${clsFiltresBar(all)}${body}</div>`;
 }
 function clsIVE(all, tab){
   const dom=UI.clsDom, isAt=tab==='ateliers';
@@ -1378,7 +1400,7 @@ document.addEventListener('change', e=>{
   const t=e.target, d=t.dataset;
   if(d.pf==='poste'){ const pl=playerById(t.closest('tr').dataset.id); pl.poste=t.value; save(); return; }
   if(d.cfg){ let v=parseInt(t.value,10)||0; if(d.cfg==='nbParties'){ v=Math.min(MAXP,Math.max(1,v)); const old=S.cfg.nbParties; for(let i=old;i<v;i++){ const p=S.parties[i]; if(!Object.keys(p.s).length) p.g=S.parties[old-1].g; } } S.cfg[d.cfg]=v; save(); render(); return; }
-  if(d.grpf!==undefined){ UI.grp=t.value; saveUI(); render(); return; }
+  if(d.grpf!==undefined){ if(t.value!=='multi'){ UI.grp=t.value; UI.grps = t.value==='all' ? [] : [t.value]; } saveUI(); render(); return; }
   if(d.pg!==undefined){ S.parties[+d.pg].g=t.value; save(); render(); return; }
   if(d.gmeta){ const g=groupeById(d.gid); if(g){ g[d.gmeta]=t.value; save(); render(); } return; }
   if(d.pbj){ S.parties[+d.pbj].bj=parseInt(t.value,10)||0; save(); render(); return; }
@@ -1936,6 +1958,83 @@ function exporterCopie(){
   setTimeout(()=>toast(`Données de la copie chargées (${p.joueurs} joueurs)`), 300);
 })();
 document.addEventListener('click', e=>{ if(e.target.closest('[data-act="exportCopie"]')) exporterCopie(); });
+
+/* =====================================================================
+   CATÉGORIES D'ÂGE, FILTRES DES CLASSEMENTS (région, catégorie,
+   regroupements multiples) ET EXPORT PDF DES CLASSEMENTS
+   Âge = année en cours − année de naissance :
+   12-13 ans Avenirs · 14-15-16 ans Jeunes · 17 ans Espoirs
+   ===================================================================== */
+const CATS = {Avenirs:{min:12,max:13,cls:'cat-a'}, Jeunes:{min:14,max:16,cls:'cat-j'}, Espoirs:{min:17,max:17,cls:'cat-e'}};
+function anneeNaiss(a){ let y=parseInt(String(a||'').trim(),10); if(isNaN(y)) return null; if(y<100) y+=2000; return y; }
+function ageSportif(a){ const y=anneeNaiss(a); return y==null ? null : new Date().getFullYear()-y; }
+function catOf(a){ const g=ageSportif(a); if(g==null) return ''; for(const [k,c] of Object.entries(CATS)) if(g>=c.min && g<=c.max) return k; return ''; }
+function catBadge(a){
+  const c=catOf(a), g=ageSportif(a);
+  if(!c) return g==null ? '<span class="muted small">–</span>' : `<span class="muted small" data-tip="${g} ans en ${new Date().getFullYear()}">hors catégorie</span>`;
+  return `<span class="catb ${CATS[c].cls}" data-tip="${g} ans en ${new Date().getFullYear()}">${c}</span>`;
+}
+const regionOf = p => ligueOf(p.cd) || 'Région non renseignée';
+
+/* ---------- filtres des classements ---------- */
+function clsFiltreJoueur(){
+  const r=UI.clsReg||'', c=UI.clsCat||'';
+  if(!r && !c) return null;
+  return p => (!r || regionOf(p)===r) && (!c || catOf(p.annee)===c);
+}
+function clsFiltreLabel(){ const t=[]; if(UI.clsReg) t.push(esc(UI.clsReg)); if(UI.clsCat) t.push(UI.clsCat); return t.length ? ' · '+t.join(' · ') : ''; }
+function clsFiltresBar(all){
+  const joueurs=S.players.filter(p=>p.nom.trim());
+  const regs=[...new Set(joueurs.map(regionOf))].sort((a,b)=>a.localeCompare(b,'fr'));
+  const ids=grpIds();
+  const nbCat=k=>joueurs.filter(p=>catOf(p.annee)===k && (!UI.clsReg || regionOf(p)===UI.clsReg)).length;
+  return `<div class="card noprint"><div class="card-b stack" style="gap:10px;padding:12px 16px">
+    ${S.groupes.length>1?`<div class="row"><span class="small" style="font-weight:600;min-width:120px">Regroupements</span><div class="chips">
+      <button class="chip ${ids.length?'':'on'}" data-act="grpTog" data-id="all">Tous</button>
+      ${S.groupes.map(g=>`<button class="chip ${ids.includes(g.id)?'on':''}" data-act="grpTog" data-id="${g.id}">${esc(g.nom)}${g.date?` <span style="opacity:.7">· ${esc(new Date(g.date).toLocaleDateString('fr-FR'))}</span>`:''}</button>`).join('')}
+      <span class="small muted">un ou plusieurs</span></div></div>`:''}
+    <div class="row"><span class="small" style="font-weight:600;min-width:120px">Tri par région</span>
+      <select class="inp" data-clsreg style="width:auto;min-width:240px"><option value="">Toutes les régions</option>${regs.map(r=>`<option value="${esc(r)}" ${UI.clsReg===r?'selected':''}>${esc(r)} (${joueurs.filter(p=>regionOf(p)===r).length})</option>`).join('')}</select></div>
+    <div class="row"><span class="small" style="font-weight:600;min-width:120px">Tri par catégorie</span>
+      <div class="chips">${Object.keys(CATS).map(k=>`<button class="chip ${UI.clsCat===k?'on':''}" data-act="clsCat" data-v="${k}" data-tip="${CATS[k].min}${CATS[k].max>CATS[k].min?'-'+CATS[k].max:''} ans en ${new Date().getFullYear()}">Tri ${k} <span style="opacity:.7">(${nbCat(k)})</span></button>`).join('')}
+      ${UI.clsCat?`<button class="chip" data-act="clsCat" data-v="">Toutes catégories</button>`:''}</div></div>
+    <div class="row"><span class="small muted" style="min-width:120px">${all.rows.length} joueur${all.rows.length>1?'s':''} classé${all.rows.length>1?'s':''}${clsFiltreLabel()}</span>
+      <div class="right row"><button class="btn sm" data-act="clsPdf" data-v="one" data-tip="Ouvre l'impression : choisissez « Enregistrer au format PDF »">${ICONS.down}PDF de ce classement</button><button class="btn sm pri" data-act="clsPdf" data-v="all" data-tip="Parties, ateliers, combiné et tir de précision avec les filtres choisis">${ICONS.down}PDF des 4 classements</button></div></div>
+  </div></div>`;
+}
+function clsEntetePdf(){
+  const ids=grpIds();
+  const f=[`Regroupements : ${ids.length?ids.map(id=>esc(groupeById(id).nom)).join(', '):'tous'}`, `Région : ${UI.clsReg?esc(UI.clsReg):'toutes'}`, `Catégorie : ${UI.clsCat||'toutes'}`];
+  return `<div class="printhead"><div style="display:flex;align-items:center;gap:12px"><img src="${LOGO_FFPJP}" alt="" style="height:46px"><div><b style="font-size:16px">Suivi de détection F.F.P.J.P. — Classements</b><div class="small">${esc(S.meta.titre||'')}${S.meta.lieu?' · '+esc(S.meta.lieu):''} · édité le ${new Date().toLocaleDateString('fr-FR')}</div><div class="small">${f.join(' · ')}</div></div></div></div>`;
+}
+function clsTousPdf(all){
+  const L={parties:'Parties', ateliers:'Ateliers', combine:'Combiné', tdp:'Tir de précision'};
+  return ['parties','ateliers','combine','tdp'].map(t=>`<div class="cls-section"><h2 style="margin:4px 0 8px;font-size:17px">${L[t]}${t==='parties'||t==='ateliers'?` · ${DOM_LABEL[UI.clsDom]}`:''}</h2>${t==='parties'||t==='ateliers'?clsIVE(all,t):t==='combine'?clsCombine(all):clsTdp(all)}</div>`).join('');
+}
+
+/* ---------- événements ---------- */
+document.addEventListener('click', e=>{
+  const a=e.target.closest('[data-act]'); if(!a) return;
+  const act=a.dataset.act;
+  if(act==='grpTog'){
+    const id=a.dataset.id; let ids=grpIds();
+    if(id==='all') ids=[]; else ids = ids.includes(id) ? ids.filter(x=>x!==id) : [...ids, id];
+    if(ids.length===S.groupes.length) ids=[];
+    UI.grps=ids; UI.grp = ids.length===1 ? ids[0] : 'all'; saveUI(); render();
+  }
+  else if(act==='clsCat'){ UI.clsCat = UI.clsCat===a.dataset.v ? '' : a.dataset.v; saveUI(); render(); }
+  else if(act==='clsPdf'){
+    if(a.dataset.v==='all'){ UI.clsPdfAll=true; render(); setTimeout(()=>{ window.print(); UI.clsPdfAll=false; render(); }, 80); }
+    else window.print();
+  }
+});
+document.addEventListener('change', e=>{ const t=e.target; if(t.dataset.clsreg!==undefined){ UI.clsReg=t.value; saveUI(); render(); } });
+document.addEventListener('input', e=>{ const t=e.target; if(t.dataset && t.dataset.pf==='annee'){ const c=t.closest('tr') && t.closest('tr').querySelector('[data-cat]'); if(c) c.innerHTML=catBadge(t.value); } });
+
+/* Classements imprimés en paysage (tableaux larges) */
+function clsPaysage(on){ let st=document.getElementById('page-paysage'); if(on && !st){ st=document.createElement('style'); st.id='page-paysage'; st.textContent='@page{size:A4 landscape;margin:9mm}'; document.head.appendChild(st); } if(!on && st) st.remove(); }
+window.addEventListener('beforeprint', ()=>{ if(VIEW==='classements' && !document.querySelector('#modal .modal-bg')) clsPaysage(true); });
+window.addEventListener('afterprint', ()=>clsPaysage(false));
 
 /* ---------- Démarrage (en dernier : toutes les fonctions et constantes sont alors initialisées) ---------- */
 try{ const th=localStorage.getItem(STORE_KEY+'-theme'); if(th) document.documentElement.dataset.theme=th; }catch(e){}
