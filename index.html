@@ -829,7 +829,7 @@ function vJoueurs(){
   <div class="stack">
   <div class="card">
     <div class="card-h"><input class="inp search" placeholder="Rechercher un joueur…" data-ui="search" value="${esc(UI.search)}"><div class="right"><span class="hint">Les modifications sont enregistrées automatiquement</span></div></div>
-    <div class="tw"><table class="t"><thead><tr><th class="c" style="width:40px">N°</th><th class="l">NOM Prénom</th><th class="l" style="width:80px">CD</th><th class="l">Ligue</th><th class="l" style="width:90px">Année</th><th class="l" style="width:100px" data-tip="Selon l'âge atteint dans l'année en cours : 12-13 ans Avenirs · 14-16 ans Jeunes · 17 ans Espoirs">Catégorie</th><th class="l" style="width:200px">Poste</th><th class="l">Club</th><th></th></tr></thead>
+    <div class="tw"><table class="t"><thead><tr><th class="c" style="width:40px">N°</th><th class="l">NOM Prénom</th><th class="l" style="width:80px">CD</th><th class="l">Ligue</th><th class="l" style="width:90px">Année</th><th class="l" style="width:100px" data-tip="Selon l'âge atteint dans l'année en cours : 12-13 ans Avenirs · 14-16 ans Jeunes · 17-22 ans Espoirs">Catégorie</th><th class="l" style="width:200px">Poste</th><th class="l">Club</th><th></th></tr></thead>
     <tbody>${list.length?list.map((p,i)=>`<tr data-id="${p.id}">
       <td class="c muted">${i+1}</td>
       <td class="l"><input class="inp" data-pf="nom" value="${esc(p.nom)}" placeholder="NOM Prénom" style="min-width:180px"></td>
@@ -1963,9 +1963,9 @@ document.addEventListener('click', e=>{ if(e.target.closest('[data-act="exportCo
    CATÉGORIES D'ÂGE, FILTRES DES CLASSEMENTS (région, catégorie,
    regroupements multiples) ET EXPORT PDF DES CLASSEMENTS
    Âge = année en cours − année de naissance :
-   12-13 ans Avenirs · 14-15-16 ans Jeunes · 17 ans Espoirs
+   12-13 ans Avenirs · 14-15-16 ans Jeunes · 17 à 22 ans Espoirs
    ===================================================================== */
-const CATS = {Avenirs:{min:12,max:13,cls:'cat-a'}, Jeunes:{min:14,max:16,cls:'cat-j'}, Espoirs:{min:17,max:17,cls:'cat-e'}};
+const CATS = {Avenirs:{min:12,max:13,cls:'cat-a'}, Jeunes:{min:14,max:16,cls:'cat-j'}, Espoirs:{min:17,max:22,cls:'cat-e'}};
 function anneeNaiss(a){ let y=parseInt(String(a||'').trim(),10); if(isNaN(y)) return null; if(y<100) y+=2000; return y; }
 function ageSportif(a){ const y=anneeNaiss(a); return y==null ? null : new Date().getFullYear()-y; }
 function catOf(a){ const g=ageSportif(a); if(g==null) return ''; for(const [k,c] of Object.entries(CATS)) if(g>=c.min && g<=c.max) return k; return ''; }
